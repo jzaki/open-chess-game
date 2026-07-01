@@ -14,8 +14,8 @@ public:
 
     bool makeMove(QString fromSquare, QString toSquare) override;
     void resetGame() override;
-    void setGameMode(QString mode) override;
-    void setDifficulty(int level) override;
+    void setGameMode(QString mode);
+    void setDifficulty(int level);
 
 private:
     std::unique_ptr<ChessEngine> m_engine;
