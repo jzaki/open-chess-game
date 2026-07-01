@@ -4,6 +4,7 @@
 #include "logos_ui_plugin_context.h"
 #include "chess_engine.h"
 #include "ai_opponent.h"
+#include "network_manager.h"
 #include <memory>
 
 class ChessGameBackend : public ChessGameBackendSimpleSource,
@@ -20,9 +21,11 @@ public:
 private:
     std::unique_ptr<ChessEngine> m_engine;
     std::unique_ptr<AiOpponent> m_ai;
+    std::unique_ptr<NetworkManager> m_network;
     QString m_gameMode;
     int m_difficulty;
 
     void updateGameState();
     void playAiMove();
+    void processNetworkState(const QString& fen);
 };
