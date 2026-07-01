@@ -10,16 +10,13 @@
 class ChessGameBackend : public ChessGameBackendSimpleSource,
                          public LogosUiPluginContext
 {
-    Q_OBJECT
-
 public:
     ChessGameBackend();
 
     bool makeMove(QString fromSquare, QString toSquare) override;
     void resetGame() override;
-
-    Q_INVOKABLE void setGameMode(QString mode);
-    Q_INVOKABLE void setDifficulty(int level);
+    void setGameMode(QString mode) override;
+    void setDifficulty(int level) override;
 
 private:
     std::unique_ptr<ChessEngine> m_engine;
