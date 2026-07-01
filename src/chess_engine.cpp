@@ -67,7 +67,10 @@ void ChessEngine::boardToFen()
         if (row < 7) fen += '/';
     }
 
-    m_fen = fen + " w KQkq - 0 1";
+    // Toggle whose turn it is
+    bool isWhiteTurn = m_fen.contains(" w ");
+    QString turnPart = isWhiteTurn ? " b " : " w ";
+    m_fen = fen + turnPart + "KQkq - 0 1";
 }
 
 bool ChessEngine::isWhiteTurn() const
