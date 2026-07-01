@@ -22,6 +22,13 @@ QString ChessEngine::getFen() const
 
 void ChessEngine::fenToBoard()
 {
+    // Initialize board to empty
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            m_board[r][c] = 0;
+        }
+    }
+
     int row = 0, col = 0;
     for (char c : m_fen.toLatin1()) {
         if (c == ' ') break;
@@ -124,15 +131,67 @@ bool ChessEngine::canMovePiece(const QString& from, const QString& to) const
         return (std::abs(toRow - fromRow) == 2 && std::abs(toCol - fromCol) == 1) ||
                (std::abs(toRow - fromRow) == 1 && std::abs(toCol - fromCol) == 2);
 
-    case 'b':
-        return std::abs(toRow - fromRow) == std::abs(toCol - fromCol);
+    case 'b': {
+        if (std::abs(toRow - fromRow) != std::abs(toCol - fromCol)) return false;
+        int rowStep = (toRow > fromRow) ? 1 : -1;
+        int colStep = (toCol > fromCol) ? 1 : -1;
+        int r = fromRow + rowStep, c = fromCol + colStep;
+        while (r != toRow || c != toCol) {
+            if (m_board[r][c] != 0) return false;
+            r += rowStep;
+            c += colStep;
+        }
+        return true;
+    }
 
-    case 'r':
-        return toRow == fromRow || toCol == fromCol;
+    case 'r': {
+        if (toRow != fromRow && toCol != fromCol) return false;
+        if (toRow == fromRow) {
+            int step = (toCol > fromCol) ? 1 : -1;
+            for (int c = fromCol + step; c != toCol; c += step) {
+                if (m_board[fromRow][c] != 0) return false;
+            }
+        } else {
+            int step = (toRow > fromRow) ? 1 : -1;
+            for (int r = fromRow + step; r != toRow; r += step) {
+                if (m_board[r][fromCol] != 0) return false;
+            }
+        }
+        return true;
+    }
 
-    case 'q':
-        return toRow == fromRow || toCol == fromCol ||
-               std::abs(toRow - fromRow) == std::abs(toCol - fromCol);
+    case 'q': {
+        bool isDiagonal = std::abs(toRow - fromRow) == std::abs(toCol - fromCol);
+        bool isStraight = (toRow == fromRow || toCol == fromCol);
+
+        if (!isDiagonal && !isStraight) return false;
+
+        if (isStraight && !isDiagonal) {
+            // Straight move like rook
+            if (toRow == fromRow) {
+                int step = (toCol > fromCol) ? 1 : -1;
+                for (int c = fromCol + step; c != toCol; c += step) {
+                    if (m_board[fromRow][c] != 0) return false;
+                }
+            } else {
+                int step = (toRow > fromRow) ? 1 : -1;
+                for (int r = fromRow + step; r != toRow; r += step) {
+                    if (m_board[r][fromCol] != 0) return false;
+                }
+            }
+        } else if (isDiagonal) {
+            // Diagonal move like bishop
+            int rowStep = (toRow > fromRow) ? 1 : -1;
+            int colStep = (toCol > fromCol) ? 1 : -1;
+            int r = fromRow + rowStep, c = fromCol + colStep;
+            while (r != toRow) {
+                if (m_board[r][c] != 0) return false;
+                r += rowStep;
+                c += colStep;
+            }
+        }
+        return true;
+    }
 
     case 'k':
         return std::abs(toRow - fromRow) <= 1 && std::abs(toCol - fromCol) <= 1;
