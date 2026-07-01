@@ -13,6 +13,38 @@ Item {
     width: 320
     height: 320
 
+    function getPieceAt(square) {
+        if (!root.fen) return "";
+
+        const col = square.charCodeAt(0) - 97;
+        const row = 8 - parseInt(square[1]);
+
+        const fenParts = root.fen.split(' ');
+        const position = fenParts[0];
+        const rows = position.split('/');
+
+        if (row < 0 || row > 7 || col < 0 || col > 7) return "";
+
+        let currentCol = 0;
+        for (let c of rows[row]) {
+            if (!isNaN(c)) {
+                currentCol += parseInt(c);
+            } else {
+                if (currentCol === col) return getPieceUnicode(c);
+                currentCol++;
+            }
+        }
+        return "";
+    }
+
+    function getPieceUnicode(piece) {
+        const pieces = {
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+        };
+        return pieces[piece] || "";
+    }
+
     Grid {
         id: boardGrid
         anchors.fill: parent
@@ -33,64 +65,32 @@ Item {
 
                 color: isLight ? "#f0d9b5" : "#b58863"
 
-                border.color: selectedSquare === square ? "#baca44" : "transparent"
+                border.color: root.selectedSquare === square ? "#baca44" : "transparent"
                 border.width: 2
 
                 Text {
-                    id: piece
                     anchors.centerIn: parent
-                    font.pixelSize: 28
-                    text: getPieceAt(parent.square)
+                    font.pixelSize: 36
+                    font.family: "DejaVu Sans"
+                    text: root.getPieceAt(square)
                 }
 
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        if (selectedSquare === "") {
-                            selectedSquare = parent.square;
-                        } else if (selectedSquare === parent.square) {
-                            selectedSquare = "";
+                        if (root.selectedSquare === "") {
+                            root.selectedSquare = square;
+                        } else if (root.selectedSquare === square) {
+                            root.selectedSquare = "";
                         } else {
-                            if (backend) {
-                                backend.makeMove(selectedSquare, parent.square);
+                            if (root.backend) {
+                                root.backend.makeMove(root.selectedSquare, square);
                             }
-                            selectedSquare = "";
+                            root.selectedSquare = "";
                         }
                     }
                 }
             }
-
-            function getPieceAt(square) {
-                if (!root.fen) return "";
-
-                const col = square.charCodeAt(0) - 97;
-                const row = 8 - parseInt(square[1]);
-
-                const fenParts = root.fen.split(' ');
-                const position = fenParts[0];
-                const rows = position.split('/');
-
-                if (row < 0 || row > 7 || col < 0 || col > 7) return "";
-
-                let currentCol = 0;
-                for (let c of rows[row]) {
-                    if (!isNaN(c)) {
-                        currentCol += parseInt(c);
-                    } else {
-                        if (currentCol === col) return c;
-                        currentCol++;
-                    }
-                }
-                return "";
-            }
         }
-    }
-
-    function getPieceUnicode(piece) {
-        const pieces = {
-            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
-            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
-        };
-        return pieces[piece] || "";
     }
 }
