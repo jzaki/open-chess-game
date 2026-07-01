@@ -10,6 +10,8 @@ Item {
 
     readonly property string fen: backend ? backend.fen : ""
     readonly property string status: backend ? backend.status : ""
+    readonly property string gameMode: backend ? backend.gameMode : "solo"
+    readonly property int difficulty: backend ? backend.difficulty : 5
 
     Connections {
         target: logos
@@ -40,6 +42,42 @@ Item {
             color: root.ready ? "#56d364" : "#f0883e"
             font.pixelSize: 11
             Layout.alignment: Qt.AlignHCenter
+        }
+
+        RowLayout {
+            spacing: 8
+            Layout.fillWidth: true
+
+            ComboBox {
+                model: ["Solo", "Network"]
+                currentIndex: root.gameMode === "network" ? 1 : 0
+                onActivated: backend.setGameMode(currentText.toLowerCase())
+                enabled: root.ready
+                Layout.preferredWidth: 100
+            }
+
+            Text {
+                text: "Difficulty:"
+                color: "#ffffff"
+                font.pixelSize: 12
+            }
+
+            Slider {
+                from: 1
+                to: 10
+                value: root.difficulty
+                stepSize: 1
+                onValueChanged: if (backend) backend.setDifficulty(value)
+                enabled: root.ready && root.gameMode === "solo"
+                Layout.preferredWidth: 120
+            }
+
+            Text {
+                text: String(root.difficulty)
+                color: "#ffffff"
+                font.pixelSize: 12
+                Layout.preferredWidth: 20
+            }
         }
 
         RowLayout {

@@ -19,6 +19,7 @@ logos_module(
     SOURCES
         src/chess_game_backend.cpp
         src/chess_engine.cpp
+        src/ai_opponent.cpp
     INCLUDE_DIRS
         src
 )
