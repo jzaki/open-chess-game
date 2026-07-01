@@ -10,7 +10,6 @@ Item {
 
     readonly property string fen: backend ? backend.fen : ""
     readonly property string status: backend ? backend.status : ""
-    readonly property string mode: backend ? backend.mode : "solo"
 
     Connections {
         target: logos
@@ -41,33 +40,18 @@ Item {
             font.pixelSize: 12
         }
 
-        RowLayout {
-            spacing: 12
-            Layout.fillWidth: true
-
-            Button {
-                text: "New Game"
-                enabled: root.ready
-                onClicked: backend.resetGame()
-            }
-
-            ComboBox {
-                model: ["solo", "network"]
-                enabled: root.ready
-                currentIndex: root.mode === "network" ? 1 : 0
-                onCurrentValueChanged: backend.setMode(currentValue)
-            }
-
-            Button {
-                text: "Solo"
-                enabled: root.mode === "solo"
-            }
+        Button {
+            text: "New Game"
+            enabled: root.ready
+            onClicked: backend.resetGame()
+            Layout.alignment: Qt.AlignHCenter
         }
 
         Text {
-            text: "Game Status: " + root.status
+            text: "Status: " + root.status
             color: "#ffffff"
             font.pixelSize: 15
+            Layout.alignment: Qt.AlignHCenter
         }
 
         Text {
