@@ -33,135 +33,179 @@ AI Agent to create a plan to deliver a Logos App with [your app idea](#your-app-
 
 ## Architecture Overview
 
-A Logos app composed of two modules:
-1. **UI Module** (QML): Displays the chess board and game controls using logos-design-system
-2. **ChessEngine Module** (C++): Handles chess logic, move validation, AI opponent, and network synchronization via Logos broadcast
+Following Logos framework conventions, this is a **UI App / View Module** with:
+- **Frontend**: QML UI (using logos-design-system) running in Basecamp process
+- **Backend**: C++ Logos Module (isolated `logos_host` subprocess) handling chess engine, AI, networking, and game state
+- **Communication**: QtRO (Qt Remote Objects) bridging QML frontend ↔ C++ backend via `LogosQmlBridge`
+- **Build Template**: [logos-module-builder](https://github.com/logos-co/logos-module-builder/) `#ui-qml-backend`
+- **Reference**: [logos-tutorial ui-qml-backend example](https://github.com/logos-co/logos-tutorial/blob/tutorial-v4/outputs/tutorial-cpp-ui-app.md)
 
-The modules communicate through C++ interfaces. The UI listens to board state changes and publishes user moves; the engine maintains game state and broadcasts it to peers.
-
-## Module Structure
-
+**Process Architecture**:
 ```
-open-chess-game/
-├── ui-module/              # QML UI module
-│   ├── src/
-│   │   ├── main.qml
-│   │   ├── BoardView.qml   # 8x8 chess board component
-│   │   └── GamePanel.qml   # Status/controls panel
-│   └── CMakeLists.txt
-├── engine-module/          # C++ Chess Engine backend
-│   ├── include/
-│   │   └── chess_engine.h  # Public interface
-│   ├── src/
-│   │   ├── chess_engine.cpp
-│   │   ├── move_validator.cpp
-│   │   └── network_sync.cpp
-│   └── CMakeLists.txt
-└── CMakeLists.txt         # Root project file
+Basecamp (Main Process)
+├── QML UI (chess_app_ui.qml)
+└── LogosQmlBridge ──┐
+                     │ IPC (QLocalSocket + QtRO)
+                     ↓
+                  ui-host subprocess
+                  └── C++ ChessGameBackend
+                      ├── Chess engine (move validation)
+                      ├── AI opponent logic
+                      ├── Network manager (game state broadcast)
+                      └── Game state / signals
 ```
 
 ## Core Components
 
-### 1. Chess Engine Module (C++)
-- **Move Validation**: Legal move checking, check/checkmate detection
-- **Board State**: FEN representation, move history tracking
-- **Signals**: Emit board changes for UI to display
-- **Networking**: Broadcast via Logos delivery_module (see AGENTS.md skills)
-  - Send GameState (FEN + timestamp + game ID) every 3s if active
-  - Listen for peer broadcasts, validate moves, accept first-valid
-  - Create new game if no state heard for 5s
+### Backend (C++ Logos Module)
 
-### 2. AI Opponent (C++)
-- **Solo Mode Logic**: Generates legal moves for Black with configurable difficulty
-- **Embedded**: Part of chess_engine module
-- **Difficulty Levels**: 
-  - Easy: random legal move
-  - Medium: simple position evaluation (piece count, centrality)
+**1. ChessEngine** (`src/backend/chess_engine.h/cpp`)
+- Chess move validation and game logic
+- Wrapper around Stockfish library or custom implementation
+- Methods: `isValidMove()`, `makeMove()`, `getGameStatus()`, `getMoveList()`
+- Handles FEN serialization for network transmission
 
-### 3. UI Module (QML)
-- **BoardView**: 8x8 grid using logos-design-system, clickable squares for move input
-- **GamePanel** (right sidebar):
-  - "White/Black to play" status
-  - Captured pieces display
-  - Check/checkmate/draw notifications
-  - Move history log
-  - Solo/Network toggle button
-  - New Game button
-  - Difficulty selector (solo mode)
-- **Network Status**: Visual indicator when synced with peers
+**2. GameState** (`src/backend/game_state.h/cpp`)
+- Manages current game FEN, whose turn, game status
+- Emits Qt signals on state changes (for QML UI binding)
+- Signals: `gameFenChanged()`, `turnChanged()`, `statusChanged()`
+
+**3. AiOpponent** (`src/backend/ai_opponent.h/cpp`)
+- Integrates Stockfish engine for move selection
+- `getBestMove(fen, depth)`: Returns best move for position
+- Configurable difficulty via search depth
+
+**4. NetworkManager** (`src/backend/network_manager.h/cpp`)
+- Broadcast discovery (mDNS or local UDP broadcast)
+- Heartbeat: sends game state every 3s if active
+- Receives incoming game states and validates moves
+- 5s timeout: creates new game if no state heard
+- Emits `stateReceived()` signal when new state available
+
+**5. ChessGameBackend** (`src/backend/chess_game_backend.h/cpp`)
+- Main backend class inheriting `LogosModuleContext`
+- Orchestrates ChessEngine, GameState, AiOpponent, NetworkManager
+- Q_INVOKABLE methods exposed to QML:
+  - `makeMove(fromSquare, toSquare)` → bool
+  - `resetGame()` → void
+  - `setMode(solo/network)` → void
+  - `setDifficulty(1-10)` → void
+- Emits Qt signals to QML: `fenChanged()`, `statusChanged()`, `modeChanged()`
+
+### Frontend (QML UI)
+
+**1. ChessBoard.qml** (`src/ui/ChessBoard.qml`)
+- 8x8 grid displaying pieces
+- Click-to-move interaction with valid move highlighting
+- Always white's perspective
+- Binds to backend FEN via `LogosQmlBridge.callModule()`
+
+**2. GameStatus.qml** (`src/ui/GameStatus.qml`)
+- Text display: current turn, game status (checkmate, check, etc.)
+- Binds to backend status signals
+
+**3. ModeToggle.qml** (`src/ui/ModeToggle.qml`)
+- Radio buttons: Solo vs Network mode
+- Difficulty slider for solo mode
+- Calls backend methods via `LogosQmlBridge.callModule()`
+
+**4. Main.qml** (`src/ui/Main.qml`)
+- Main UI container orchestrating ChessBoard, GameStatus, ModeToggle
+- Uses logos-design-system components
 
 ## Implementation Phases
 
-### Phase 1: Project Setup (Day 1)
-- [ ] Clone logos-module-builder and use `#ui-qml-backend` template
-- [ ] Set up engine module with CMakeLists.txt (C++ backend)
-- [ ] Set up UI module with CMakeLists.txt (QML frontend)
-- [ ] Configure module dependencies in parent CMakeLists.txt
-- [ ] Verify build system works (cmake + build)
+### Phase 0: Project Setup (Prerequisite)
+1. Clone this repo and run `nix flake init -t github:logos-co/logos-module-builder#ui-qml-backend`
+2. Set up `metadata.json` with module name, type (`ui_qml`), dependencies
+3. Run `nix build .#generate` to set up code generation structure
+4. Verify flake builds: `nix build .#default`
 
-### Phase 2: Chess Engine Core (Day 1-2)
-- [ ] Implement move_validator.cpp (legal move checking, check/checkmate)
-- [ ] Build chess_engine.h interface with signals for board changes
-- [ ] Implement board state management (FEN representation, move history)
-- [ ] Test move validation with unit tests
-- [ ] Implement "New Game" reset functionality
+**Reference**: [logos-tutorial-v4 setup](https://github.com/logos-co/logos-tutorial/blob/tutorial-v4/outputs/tutorial-cpp-ui-app.md)
 
-### Phase 3: UI Module (Day 2-3)
-- [ ] Build BoardView.qml (8x8 grid with clickable squares)
-- [ ] Create GamePanel.qml (status, controls, piece display) using logos-design-system
-- [ ] Connect UI to engine via C++ signals/slots
-- [ ] Implement move input handling and validation feedback
-- [ ] Add solo/network toggle button and difficulty selector
+### Phase 1: Basic Chess Backend & UI (Milestone: Playable chess in UI)
+1. Implement `ChessEngine` with move validation (use Stockfish or custom)
+2. Implement `GameState` with FEN tracking and Qt signals
+3. Implement `ChessGameBackend` with Q_INVOKABLE methods
+4. Implement `ChessBoard.qml` with 8x8 grid and piece rendering
+5. Implement `GameStatus.qml` text display
+6. Wire QML ↔ backend via `LogosQmlBridge` (callModule)
+7. Test click-to-move in UI
 
-### Phase 4: Solo AI Mode (Day 3)
-- [ ] Implement AI move generation (easy: random, medium: evaluation)
-- [ ] Auto-play opponent's move after user move with delay
-- [ ] Test solo gameplay end-to-end
+**Files**: `src/backend/chess_engine.h/cpp`, `src/backend/game_state.h/cpp`, `src/backend/chess_game_backend.h/cpp`, `src/ui/ChessBoard.qml`, `src/ui/GameStatus.qml`, `src/ui/Main.qml`
 
-### Phase 5: Network Sync (Day 4)
-- [ ] Integrate delivery_module for broadcast messaging (see [use-delivery-module skill](AGENTS.md))
-- [ ] Implement GameState encoding/decoding (FEN + timestamp + game ID)
-- [ ] Add 5s timeout for new game creation when idle
-- [ ] Add 3s state broadcast heartbeat when active
-- [ ] Add move legality validation for received states
-- [ ] Implement first-valid-move acceptance on conflicts
+### Phase 2: Solo Play with AI (Milestone: Play against AI opponent)
+1. Integrate Stockfish in `AiOpponent`
+2. Implement `ChessGameBackend::makeMove()` to call AI when in solo mode and Black's turn
+3. Implement `ModeToggle.qml` for solo/network mode selection
+4. Add difficulty slider for search depth
+5. Auto-move AI opponent after user move
 
-### Phase 6: Polish & Testing (Day 4-5)
-- [ ] Add network status indicator in UI
-- [ ] Test multi-client synchronization
-- [ ] Test network failover (no broadcast → new game)
-- [ ] Test invalid move rejection from network
-- [ ] Performance and responsiveness testing
-- [ ] Documentation of module interface
+**Files**: `src/backend/ai_opponent.h/cpp`, `src/ui/ModeToggle.qml`, `src/backend/chess_game_backend.cpp` (updated)
 
-## State Flow Diagram
+### Phase 3: Network Broadcasting (Milestone: Multi-app sync)
+1. Implement `NetworkManager` for local game state broadcast (mDNS or UDP)
+2. Implement 3s heartbeat in NetworkManager
+3. Implement 5s timeout (create new game if no state heard)
+4. Implement move validation for received states
+5. Connect `NetworkManager` to `GameState` and `ChessGameBackend`
+6. Test with `nix run` multiple instances
+
+**Files**: `src/backend/network_manager.h/cpp`, `src/backend/chess_game_backend.cpp` (updated with network orchestration)
+
+### Phase 4: Portability & Testing (Milestone: Production ready)
+1. Build portable `.lgx` bundle: `nix build .#lgx-portable`
+2. Test in Basecamp with other modules
+3. Validate all variants (`linux-x86_64`, `darwin-arm64`, etc.) included
+4. Unit tests for ChessEngine, AiOpponent, NetworkManager
+5. Integration tests for move propagation and state sync
+
+**Files**: Test suite, CI/CD config, metadata.json validation
+
+## Key Files to Create
 
 ```
-User Input
-    ↓
-Move Validation (chess.js)
-    ↓
-Update Local Board → Broadcast State
-    ↓
-Listen for Remote Broadcasts
-    ↓
-Validate Remote Move → Accept/Reject
-    ↓
-Sync Local & Remote if Consistent
+src/
+├── backend/
+│   ├── chess_engine.h/cpp        # Move validation, game logic
+│   ├── game_state.h/cpp          # FEN tracking, Qt signals
+│   ├── ai_opponent.h/cpp         # Stockfish integration
+│   ├── network_manager.h/cpp     # Local broadcast, sync
+│   └── chess_game_backend.h/cpp  # Main Logos module, orchestration
+├── ui/
+│   ├── ChessBoard.qml            # 8x8 board display
+│   ├── GameStatus.qml            # Turn/status text
+│   ├── ModeToggle.qml            # Solo/Network mode switch
+│   └── Main.qml                  # Top-level UI container
+├── CMakeLists.txt                # Build config
+├── metadata.json                 # Module metadata (type: ui_qml)
+└── chess_game_backend.rep        # QtRO contract (QML ↔ backend)
 ```
 
-## Technology Stack
-- **Template**: logos-module-builder `#ui-qml-backend` (provides base module structure)
-- **UI Framework**: QML (Qt) + logos-design-system
-- **Backend**: C++17
-- **Chess Logic**: Custom move validation (no external library to keep dependencies minimal)
-- **Networking**: Logos delivery_module for broadcast messaging
-- **Build System**: CMake + C++ compiler
-- **Development**: Follow [logos-tutorial](https://github.com/logos-co/logos-tutorial/blob/tutorial-v4/) (tutorial-v4 tag)
+## Critical Dependencies
+
+- **Stockfish**: Chess engine (C++ or precompiled)
+- **Qt 6**: QML, QtRO, Core libs
+- **logos-cpp-sdk**: Code generation, module context
+- **logos-design-system**: QML UI components (recommended)
+- **logos-view-module-runtime**: QML ↔ C++ bridge
+
+## Testing Strategy
+
+1. **Unit Tests**: ChessEngine (move validation), AiOpponent (move selection)
+2. **Integration Tests**: NetworkManager (broadcast/receive), full game loop
+3. **Manual Testing**: 
+   - Solo: Make moves, verify AI responds
+   - Network: `nix run` multiple instances, verify state sync within 3s
+   - 5s timeout: Stop one instance, verify new game after 5s
+   - Edge cases: Checkmate, stalemate, invalid moves
+4. **Portability**: Build `.lgx-portable`, test in Basecamp alongside other modules
 
 ## Success Criteria
-- ✓ Solo play works with valid move enforcement
-- ✓ Multiple clients see the same board state in real-time
-- ✓ Network failures gracefully create new games after 5s
-- ✓ Invalid moves are rejected silently
-- ✓ UI clearly shows whose turn it is
+
+- ✓ Can play full chess game against AI in solo mode (Phase 2)
+- ✓ Multiple app instances sync game state within 3s (Phase 3)
+- ✓ New game creates automatically after 5s of silence (Phase 3)
+- ✓ UI always shows white's perspective (Phase 1)
+- ✓ Portable `.lgx` bundle works in Basecamp (Phase 4)
+- ✓ Runs alongside other Logos modules without state conflicts (Phase 4)

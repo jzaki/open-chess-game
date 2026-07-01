@@ -1,5 +1,5 @@
 
-# Idea to Logos App
+# Idea to Logos App (NOT web frameworks)
 
 See [helper-mds/module-considerations.md](helper-mds/module-considerations.md#starting-with-an-idea)
 
