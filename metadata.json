@@ -1,0 +1,28 @@
+{
+  "name": "chess_game",
+  "display_name": "Chess Game",
+  "version": "1.0.0",
+  "type": "ui_qml",
+  "interface": "universal",
+  "category": "games",
+  "description": "A shared peer-to-peer chess game with solo AI play and network synchronization",
+  "main": "chess_game_plugin",
+  "icon": null,
+  "view": "qml/Main.qml",
+  "dependencies": [],
+  "codegen": { "rep": "src/chess_game_backend.rep" },
+
+  "nix": {
+    "packages": {
+      "build": [],
+      "runtime": []
+    },
+    "external_libraries": {},
+    "cmake": {
+      "find_packages": [],
+      "extra_sources": [],
+      "extra_include_dirs": [],
+      "extra_link_libraries": []
+    }
+  }
+}

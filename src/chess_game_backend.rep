@@ -1,0 +1,11 @@
+class ChessGameBackend {
+    SLOT(bool makeMove(QString fromSquare, QString toSquare));
+    SLOT(void resetGame());
+    SLOT(void setMode(QString mode));
+    SLOT(void setDifficulty(int level));
+
+    PROP(QString fen READONLY);
+    PROP(QString status READONLY);
+    PROP(QString mode READONLY);
+    PROP(int difficulty READONLY);
+};
