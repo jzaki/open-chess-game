@@ -2,6 +2,8 @@
 
 #include "rep_chess_game_backend_source.h"
 #include "logos_ui_plugin_context.h"
+#include "chess_engine.h"
+#include <memory>
 
 class ChessGameBackend : public ChessGameBackendSimpleSource,
                          public LogosUiPluginContext
@@ -13,5 +15,7 @@ public:
     void resetGame() override;
 
 private:
-    QString m_currentFen;
+    std::unique_ptr<ChessEngine> m_engine;
+
+    void updateGameState();
 };

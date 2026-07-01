@@ -1,21 +1,32 @@
 #include "chess_game_backend.h"
 
 ChessGameBackend::ChessGameBackend()
-    : m_currentFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+    : m_engine(std::make_unique<ChessEngine>())
 {
-    setFen(m_currentFen);
-    setStatus("White to play");
+    updateGameState();
 }
 
 bool ChessGameBackend::makeMove(QString fromSquare, QString toSquare)
 {
-    // TODO: Validate move, update FEN, check game status
+    if (!m_engine->isValidMove(fromSquare, toSquare)) {
+        return false;
+    }
+
+    if (m_engine->makeMove(fromSquare, toSquare)) {
+        updateGameState();
+        return true;
+    }
     return false;
 }
 
 void ChessGameBackend::resetGame()
 {
-    m_currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    setFen(m_currentFen);
-    setStatus("White to play");
+    m_engine->reset();
+    updateGameState();
+}
+
+void ChessGameBackend::updateGameState()
+{
+    setFen(m_engine->getFen());
+    setStatus(m_engine->getGameStatus());
 }
