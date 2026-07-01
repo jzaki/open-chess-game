@@ -1,5 +1,7 @@
 #include "chess_engine.h"
 #include <cctype>
+#include <cstdlib>
+#include <QtCore/QStringList>
 
 ChessEngine::ChessEngine()
     : m_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")

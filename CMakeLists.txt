@@ -17,9 +17,7 @@ logos_module(
     NAME ${MODULE_NAME}
     REP_FILE src/chess_game_backend.rep
     SOURCES
-        src/chess_game_backend.h
         src/chess_game_backend.cpp
-        src/chess_engine.h
         src/chess_engine.cpp
     INCLUDE_DIRS
         src
