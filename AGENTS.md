@@ -3,6 +3,10 @@
 
 See [helper-mds/module-considerations.md](helper-mds/module-considerations.md#starting-with-an-idea)
 
+For networking, use logos-delivery (see skills below).
+For storage, use logos-storage from logos-co github.
+For blockchain, use logos-blockchain and logos-execution-zone repos from logos-blockchain github account.
+
 # ref-repos
 Refers to manully checked out repos for AI agents to refer to, .gitignor'ed since they are not part of the app.
 
@@ -18,3 +22,4 @@ Reusable procedures live in `skills/`. Read the relevant one before the matching
 - [use-another-module](skills/use-another-module/SKILL.md) — make one module call/subscribe to another via the generated `modules().<dep>` wrapper.
 - [use-delivery-module](skills/use-delivery-module/SKILL.md) — send/receive messages over the Logos network using `delivery_module`.
 - [use-design-system](skills/use-design-system/SKILL.md) — use the design system (compatible with basecamp) in a ui module of an app
+
