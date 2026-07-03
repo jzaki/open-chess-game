@@ -10,6 +10,8 @@
 class ChessGameBackend : public ChessGameBackendSimpleSource,
                          public LogosUiPluginContext
 {
+    Q_OBJECT
+
 public:
     ChessGameBackend();
 
@@ -17,6 +19,7 @@ public:
     void resetGame() override;
     void setGameMode(QString mode) override;
     void setDifficulty(int level) override;
+    void onContextReady();
 
 private:
     std::unique_ptr<ChessEngine> m_engine;

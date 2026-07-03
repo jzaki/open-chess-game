@@ -1,19 +1,27 @@
 #include "network_manager.h"
+#include "logos_ui_plugin_context.h"
 #include <QtCore/QTimer>
 #include <QtCore/QStringList>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
+#include <QtCore/QDateTime>
+#include <QtCore/QVariantList>
 
-NetworkManager::NetworkManager(QObject *parent)
+#include "logos_sdk.h"
+#include "logos_types.h"
+
+const QString NetworkManager::CHESS_TOPIC = "/chessapp/1/moves/proto";
+
+NetworkManager::NetworkManager(LogosUiPluginContext* context, QObject *parent)
     : QObject(parent),
+      m_context(context),
       m_heartbeatTimer(std::make_unique<QTimer>(this)),
-      m_timeoutTimer(std::make_unique<QTimer>(this)),
       m_hasNewState(false),
-      m_isNetworkMode(false)
+      m_isNetworkMode(false),
+      m_nodeReady(false)
 {
     connect(m_heartbeatTimer.get(), &QTimer::timeout, this, &NetworkManager::onHeartbeatTimer);
-    connect(m_timeoutTimer.get(), &QTimer::timeout, this, &NetworkManager::onTimeoutTimer);
-
     m_heartbeatTimer->setInterval(HEARTBEAT_INTERVAL);
-    m_timeoutTimer->setInterval(TIMEOUT_INTERVAL);
 }
 
 NetworkManager::~NetworkManager()
@@ -21,33 +29,61 @@ NetworkManager::~NetworkManager()
     stopBroadcasting();
 }
 
+void NetworkManager::onContextReady()
+{
+    if (!m_context) return;
+    QTimer::singleShot(0, this, &NetworkManager::bootstrap);
+}
+
+void NetworkManager::bootstrap()
+{
+    if (!m_context) return;
+
+    m_context->modules().delivery_module.on(
+        "messageReceived", [this](const QVariantList& data) {
+            onMessageReceived(data);
+        });
+
+    const QJsonObject cfg{
+        {"logLevel", "INFO"},
+        {"mode", "Core"},
+        {"preset", "logos.test"},
+    };
+    const QString cfgJson = QString::fromUtf8(QJsonDocument(cfg).toJson(QJsonDocument::Compact));
+
+    LogosResult created = m_context->modules().delivery_module.createNode(cfgJson);
+    if (created.success) {
+        LogosResult started = m_context->modules().delivery_module.start();
+        if (!started.success) {
+            return;
+        }
+    }
+
+    LogosResult subscribed = m_context->modules().delivery_module.subscribe(CHESS_TOPIC);
+    if (!subscribed.success) {
+        return;
+    }
+
+    m_nodeReady = true;
+}
+
 void NetworkManager::startBroadcasting(const QString& fen)
 {
     m_currentFen = fen;
     m_isNetworkMode = true;
+
+    if (!m_nodeReady) {
+        onContextReady();
+    }
+
     m_heartbeatTimer->start();
-    m_timeoutTimer->start();
     broadcastGameState();
 }
 
 void NetworkManager::stopBroadcasting()
 {
     m_heartbeatTimer->stop();
-    m_timeoutTimer->stop();
     m_isNetworkMode = false;
-}
-
-void NetworkManager::setGameMode(const QString& mode)
-{
-    m_gameMode = mode;
-    if (mode == "network") {
-        if (!m_heartbeatTimer->isActive()) {
-            m_heartbeatTimer->start();
-            m_timeoutTimer->start();
-        }
-    } else {
-        stopBroadcasting();
-    }
 }
 
 QString NetworkManager::getReceivedFen() const
@@ -65,27 +101,44 @@ void NetworkManager::clearNewStateFlag()
     m_hasNewState = false;
 }
 
-void NetworkManager::onHeartbeatTimer()
-{
-    broadcastGameState();
-    m_timeoutTimer->start();
-}
-
-void NetworkManager::onTimeoutTimer()
-{
-    if (m_isNetworkMode) {
-        emit stateReceived("");
-    }
-}
-
 void NetworkManager::broadcastGameState()
 {
-    if (!m_isNetworkMode || m_currentFen.isEmpty()) {
+    if (!m_isNetworkMode || m_currentFen.isEmpty() || !m_nodeReady || !m_context) {
         return;
     }
 
-    // In a real deployment, this would use logos-delivery to broadcast
-    // For now, this is a placeholder for inter-app communication
+    QJsonObject payload;
+    payload["fen"] = m_currentFen;
+
+    QJsonDocument doc(payload);
+    QByteArray jsonBytes = doc.toJson(QJsonDocument::Compact);
+
+    m_context->modules().delivery_module.send(CHESS_TOPIC, jsonBytes);
+}
+
+void NetworkManager::onHeartbeatTimer()
+{
+    broadcastGameState();
+}
+
+void NetworkManager::onMessageReceived(const QVariantList& data)
+{
+    if (data.size() < 3) return;
+
+    QByteArray payload = data.at(2).toByteArray();
+    QString jsonText = QString::fromUtf8(payload);
+
+    QJsonDocument doc = QJsonDocument::fromJson(jsonText.toUtf8());
+    if (!doc.isObject()) return;
+
+    QJsonObject obj = doc.object();
+    QString receivedFen = obj.value("fen").toString();
+
+    if (validateReceivedFen(receivedFen) && receivedFen != m_currentFen) {
+        m_receivedFen = receivedFen;
+        m_hasNewState = true;
+        emit stateReceived(receivedFen);
+    }
 }
 
 bool NetworkManager::validateReceivedFen(const QString& fen)

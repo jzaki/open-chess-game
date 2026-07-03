@@ -9,7 +9,7 @@
   "main": "chess_game_plugin",
   "icon": null,
   "view": "qml/Main.qml",
-  "dependencies": [],
+  "dependencies": ["delivery_module"],
   "codegen": { "rep": "src/chess_game_backend.rep" },
 
   "nix": {
